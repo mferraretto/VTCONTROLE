@@ -21,8 +21,7 @@
       query,
       where,
       orderBy,
-      serverTimestamp,
-      enableIndexedDbPersistence
+      serverTimestamp
     } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
     // Config fornecida pelo usuário
@@ -39,23 +38,18 @@
 
     // Alguns ambientes corporativos/ISP bloqueiam o protocolo WebChannel usado
     // pelo Firestore, resultando em erros 400 na stream "Write". Forçamos o
-    // uso do long polling (ou autodetecção) e fazemos fallback para a
-    // inicialização padrão caso o método não esteja disponível.
+    // uso do long polling e fazemos fallback para a inicialização padrão caso
+    // o método não esteja disponível.
     let db;
     try {
       db = initializeFirestore(app, {
-        experimentalAutoDetectLongPolling: true,
+        experimentalForceLongPolling: true,
         useFetchStreams: false,
       });
     } catch (err) {
       console.warn("Falha ao forçar long polling, usando getFirestore padrão", err);
       db = getFirestore(app);
     }
-
-    // Tentativa de cache/offline
-    enableIndexedDbPersistence(db).catch(err => {
-      console.warn("IndexedDB persistence indisponível", err);
-    });
 
     // Expor globalmente para app.js
     window.__vts = { db, collection, addDoc, setDoc, getDocs, getDoc, doc, query, where, orderBy, serverTimestamp };
