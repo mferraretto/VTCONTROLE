@@ -281,6 +281,9 @@ btnSalvar.addEventListener("click", async () => {
   try {
     // Aguarda autenticação/Firestore prontos
     await (window.__vts?.whenReady || Promise.resolve());
+    if (window.__vts?.getAuthError?.()) {
+      console.warn("Autenticação anônima falhou; verificando permissões das regras do Firestore.");
+    }
     const { db, setDoc, doc } = window.__vts || {};
     if (!db) {
       throw new Error("Firestore não inicializado. Verifique sua conexão ou configurações do Firebase.");
@@ -300,6 +303,9 @@ async function carregarPedidos() {
   try {
     // Aguarda autenticação/Firestore prontos
     await (window.__vts?.whenReady || Promise.resolve());
+    if (window.__vts?.getAuthError?.()) {
+      console.warn("Autenticação anônima falhou; tentando leitura conforme regras do Firestore.");
+    }
     const { db, collection, getDocs, query, orderBy } = window.__vts || {};
     if (!db) {
       throw new Error("Firestore não inicializado.");
@@ -355,6 +361,9 @@ btnExportar.addEventListener("click", async () => {
   try {
     // Aguarda autenticação/Firestore prontos
     await (window.__vts?.whenReady || Promise.resolve());
+    if (window.__vts?.getAuthError?.()) {
+      console.warn("Autenticação anônima falhou; tentando exportação conforme regras do Firestore.");
+    }
     const { db, collection, getDocs, query, orderBy } = window.__vts || {};
     if (!db) {
       throw new Error("Firestore não inicializado.");
@@ -395,6 +404,9 @@ btnMarcarDevolvido.addEventListener("click", async () => {
   try {
     // Aguarda autenticação/Firestore prontos
     await (window.__vts?.whenReady || Promise.resolve());
+    if (window.__vts?.getAuthError?.()) {
+      console.warn("Autenticação anônima falhou; tentativa de atualização conforme regras do Firestore.");
+    }
     const { db, collection, getDocs, query, where, setDoc, doc, serverTimestamp } = window.__vts || {};
     if (!db) {
       throw new Error("Firestore não inicializado.");

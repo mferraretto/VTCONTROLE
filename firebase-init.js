@@ -63,16 +63,17 @@ function createFirestore(app, localCache) {
 
 function ensureAnonymousAuth(app) {
   const auth = getAuth(app);
+  let authError = null;
+  // Resolva a prontidão no primeiro callback, mesmo sem usuário, para não travar a UI
   const ready = new Promise((resolve) => {
-    onAuthStateChanged(auth, (user) => {
-      if (user) resolve(user);
-    });
+    onAuthStateChanged(auth, () => resolve());
   });
-  // Dispara login anônimo; se já estiver logado, o onAuthStateChanged resolverá
+  // Dispara login anônimo; se já estiver logado, o onAuthStateChanged será chamado
   signInAnonymously(auth).catch((err) => {
+    authError = err;
     console.warn("Falha ao autenticar anonimamente", err);
   });
-  return { auth, ready };
+  return { auth, ready, authErrorGetter: () => authError };
 }
 
 export function initFirebase() {
@@ -83,7 +84,7 @@ export function initFirebase() {
   const app = initializeApp(firebaseConfig);
   const localCache = setupLocalCache();
   const db = createFirestore(app, localCache);
-  const { auth, ready } = ensureAnonymousAuth(app);
+  const { auth, ready, authErrorGetter } = ensureAnonymousAuth(app);
 
   window.__vts = {
     db,
@@ -99,6 +100,7 @@ export function initFirebase() {
     serverTimestamp,
     auth,
     whenReady: ready,
+    getAuthError: authErrorGetter,
   };
 
   return window.__vts;
