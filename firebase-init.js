@@ -42,7 +42,7 @@ function createFirestore(app, localCache) {
   try {
     return initializeFirestore(app, {
       experimentalAutoDetectLongPolling: true,
-      useFetchStreams: false,
+      useFetchStreams: true,
       localCache,
     });
   } catch (err) {
@@ -52,7 +52,7 @@ function createFirestore(app, localCache) {
   try {
     return initializeFirestore(app, {
       experimentalForceLongPolling: true,
-      useFetchStreams: false,
+      useFetchStreams: true,
       localCache,
     });
   } catch (err) {
