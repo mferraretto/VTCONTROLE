@@ -1,7 +1,4 @@
-import { initFirebase } from "./firebase-init.js";
-
-// Garante inicialização do Firebase/Firestore antes de usar window.__vts
-initFirebase();
+// Firebase/Firestore agora é inicializado em index.html via CDN
 
 // app.js
 // Navegação

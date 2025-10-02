@@ -141,7 +141,65 @@
   <footer class="app-footer">
     <small>Feito para leitura de etiquetas reais (OCR) — suporta imagem e PDF — salva no Firestore.</small>
   </footer>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+    import {
+      initializeFirestore,
+      getFirestore,
+      collection, addDoc, setDoc, getDocs, getDoc, doc,
+      query, where, orderBy, serverTimestamp,
+      persistentLocalCache, persistentMultipleTabManager, memoryLocalCache,
+    } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
+    const firebaseConfig = {
+      apiKey: "AIzaSyDWok2hM9-HWITlLuqmYhGgEx8giXRUSTA",
+      authDomain: "vtscontrole.firebaseapp.com",
+      projectId: "vtscontrole",
+      storageBucket: "vtscontrole.appspot.com",
+      messagingSenderId: "538434942205",
+      appId: "1:538434942205:web:c174a1e336e5b75628fa94",
+    };
+
+    function setupLocalCache() {
+      try {
+        return ("indexedDB" in window)
+          ? persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+          : memoryLocalCache();
+      } catch (_) {
+        return memoryLocalCache();
+      }
+    }
+
+    function createFirestore(app, localCache) {
+      try {
+        return initializeFirestore(app, {
+          experimentalAutoDetectLongPolling: true,
+          useFetchStreams: true,
+          localCache,
+        });
+      } catch (err) {}
+
+      try {
+        return initializeFirestore(app, {
+          experimentalForceLongPolling: true,
+          useFetchStreams: true,
+          localCache,
+        });
+      } catch (err) {
+        return getFirestore(app);
+      }
+    }
+
+    const app = initializeApp(firebaseConfig);
+    const db  = createFirestore(app, setupLocalCache());
+
+    window.__vts = {
+      db,
+      collection, addDoc, setDoc, getDocs, getDoc, doc,
+      query, where, orderBy, serverTimestamp,
+      whenReady: Promise.resolve(),
+    };
+  </script>
   <script type="module" src="app.js"></script>
 </body>
 </html>
