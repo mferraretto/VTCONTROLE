@@ -3,6 +3,20 @@ import { initFirebase } from "./firebase-init.js";
 // Garante inicialização do Firebase/Firestore antes de usar window.__vts
 initFirebase();
 
+// Exibe aviso amigável caso a autenticação anônima esteja desativada no projeto
+(async () => {
+  try {
+    await (window.__vts?.whenReady || Promise.resolve());
+    const authErr = window.__vts?.getAuthError?.();
+    if (authErr && /auth\/configuration-not-found/.test(authErr.code || authErr.message || "")) {
+      const el = document.getElementById("saveMsg");
+      if (el && !el.innerHTML) {
+        el.innerHTML = `<span class="badge no">Autenticação anônima desativada no Firebase. Ative em Auth → Método de login → Anônimo, ou ajuste as regras do Firestore para permitir acesso conforme sua política.</span>`;
+      }
+    }
+  } catch (_) {}
+})();
+
 // app.js
 // Navegação
 const tabs = document.querySelectorAll(".tab");
