@@ -279,6 +279,8 @@ btnSalvar.addEventListener("click", async () => {
   const id = stable.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 120);
 
   try {
+    // Aguarda autenticação/Firestore prontos
+    await (window.__vts?.whenReady || Promise.resolve());
     const { db, setDoc, doc } = window.__vts || {};
     if (!db) {
       throw new Error("Firestore não inicializado. Verifique sua conexão ou configurações do Firebase.");
@@ -296,6 +298,8 @@ btnSalvar.addEventListener("click", async () => {
 async function carregarPedidos() {
   tblPedidos.innerHTML = "<tr><td colspan='7'>Carregando...</td></tr>";
   try {
+    // Aguarda autenticação/Firestore prontos
+    await (window.__vts?.whenReady || Promise.resolve());
     const { db, collection, getDocs, query, orderBy } = window.__vts || {};
     if (!db) {
       throw new Error("Firestore não inicializado.");
@@ -349,6 +353,8 @@ filtroBusca.addEventListener("input", carregarPedidos);
 
 btnExportar.addEventListener("click", async () => {
   try {
+    // Aguarda autenticação/Firestore prontos
+    await (window.__vts?.whenReady || Promise.resolve());
     const { db, collection, getDocs, query, orderBy } = window.__vts || {};
     if (!db) {
       throw new Error("Firestore não inicializado.");
@@ -387,6 +393,8 @@ btnMarcarDevolvido.addEventListener("click", async () => {
   }
   devMsg.textContent = "";
   try {
+    // Aguarda autenticação/Firestore prontos
+    await (window.__vts?.whenReady || Promise.resolve());
     const { db, collection, getDocs, query, where, setDoc, doc, serverTimestamp } = window.__vts || {};
     if (!db) {
       throw new Error("Firestore não inicializado.");

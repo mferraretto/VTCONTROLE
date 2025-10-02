@@ -1,4 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
 import {
   getFirestore,
   initializeFirestore,
@@ -21,7 +22,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyDWok2hM9-HWITlLuqmYhGgEx8giXRUSTA",
   authDomain: "vtscontrole.firebaseapp.com",
   projectId: "vtscontrole",
-  storageBucket: "vtscontrole.firebasestorage.app",
+  storageBucket: "vtscontrole.appspot.com",
   messagingSenderId: "538434942205",
   appId: "1:538434942205:web:c174a1e336e5b75628fa94",
 };
@@ -60,6 +61,20 @@ function createFirestore(app, localCache) {
   }
 }
 
+function ensureAnonymousAuth(app) {
+  const auth = getAuth(app);
+  const ready = new Promise((resolve) => {
+    onAuthStateChanged(auth, (user) => {
+      if (user) resolve(user);
+    });
+  });
+  // Dispara login anônimo; se já estiver logado, o onAuthStateChanged resolverá
+  signInAnonymously(auth).catch((err) => {
+    console.warn("Falha ao autenticar anonimamente", err);
+  });
+  return { auth, ready };
+}
+
 export function initFirebase() {
   if (window.__vts) {
     return window.__vts;
@@ -68,6 +83,7 @@ export function initFirebase() {
   const app = initializeApp(firebaseConfig);
   const localCache = setupLocalCache();
   const db = createFirestore(app, localCache);
+  const { auth, ready } = ensureAnonymousAuth(app);
 
   window.__vts = {
     db,
@@ -81,6 +97,8 @@ export function initFirebase() {
     where,
     orderBy,
     serverTimestamp,
+    auth,
+    whenReady: ready,
   };
 
   return window.__vts;
