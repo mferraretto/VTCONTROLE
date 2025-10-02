@@ -67,6 +67,10 @@ async function tryExtractTextFromPdf(page) {
 }
 
 async function textFromPdf(file) {
+  const pdfjsLib = window.pdfjsLib;
+  if (!pdfjsLib) {
+    throw new Error("Biblioteca pdf.js não carregada");
+  }
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   let fullText = "";
@@ -198,13 +202,18 @@ inpPdf.addEventListener("change", async (ev) => {
   const file = ev.target.files?.[0];
   if (!file) return;
   saveMsg.textContent = "Lendo PDF e extraindo texto...";
-  const { text, usouOcr } = await textFromPdf(file);
-  ocrTextFinal = text;
-  ocrDump.textContent = text;
-  preencherCampos(text);
-  saveMsg.textContent = usouOcr
-    ? "PDF processado com OCR. Revise e salve."
-    : "PDF processado. Revise e salve.";
+  try {
+    const { text, usouOcr } = await textFromPdf(file);
+    ocrTextFinal = text;
+    ocrDump.textContent = text;
+    preencherCampos(text);
+    saveMsg.textContent = usouOcr
+      ? "PDF processado com OCR. Revise e salve."
+      : "PDF processado. Revise e salve.";
+  } catch (err) {
+    console.error("Erro ao processar PDF", err);
+    saveMsg.innerHTML = `<span class="badge no">Falha ao ler o PDF.</span>`;
+  }
 });
 
 btnProcessarTexto.addEventListener("click", () => {
