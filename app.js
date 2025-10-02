@@ -273,77 +273,103 @@ btnSalvar.addEventListener("click", async () => {
   const stable = vendaId || rastreio || `${sku||'SKU'}_${data||Date.now()}`;
   const id = stable.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 120);
 
-  const { db, setDoc, doc } = window.__vts;
-  await setDoc(doc(db, "vtsPedidos", id), payload, { merge: true });
-  saveMsg.innerHTML = `<span class="badge ok">Salvo!</span> ID: ${id}`;
+  try {
+    const { db, setDoc, doc } = window.__vts || {};
+    if (!db) {
+      throw new Error("Firestore não inicializado. Verifique sua conexão ou configurações do Firebase.");
+    }
+    await setDoc(doc(db, "vtsPedidos", id), payload, { merge: true });
+    saveMsg.innerHTML = `<span class="badge ok">Salvo!</span> ID: ${id}`;
+  } catch (err) {
+    console.error("Falha ao salvar no Firestore", err);
+    const msg = err?.message || "Não foi possível salvar. Consulte o console do navegador.";
+    saveMsg.innerHTML = `<span class="badge no">${msg}</span>`;
+  }
 });
 
 // Listagem / Export ----------------------------------------------------------
 async function carregarPedidos() {
-  const { db, collection, getDocs, query, orderBy } = window.__vts;
   tblPedidos.innerHTML = "<tr><td colspan='7'>Carregando...</td></tr>";
-  const q = query(collection(db, "vtsPedidos"), orderBy("criadoEm", "desc"));
-  const snap = await getDocs(q);
-  const rows = [];
-  snap.forEach(docSnap => {
-    const d = docSnap.data();
-    rows.push({
-      id: docSnap.id,
-      data: d.data || "",
-      sku: d.sku || "",
-      rastreio: d.rastreio || "",
-      vendaId: d.vendaId || "",
-      loja: d.loja || "",
-      devolvido: !!d.devolvido,
-      criadoEm: d.criadoEm?.toDate?.()?.toLocaleString?.() || "",
+  try {
+    const { db, collection, getDocs, query, orderBy } = window.__vts || {};
+    if (!db) {
+      throw new Error("Firestore não inicializado.");
+    }
+    const q = query(collection(db, "vtsPedidos"), orderBy("criadoEm", "desc"));
+    const snap = await getDocs(q);
+    const rows = [];
+    snap.forEach(docSnap => {
+      const d = docSnap.data();
+      rows.push({
+        id: docSnap.id,
+        data: d.data || "",
+        sku: d.sku || "",
+        rastreio: d.rastreio || "",
+        vendaId: d.vendaId || "",
+        loja: d.loja || "",
+        devolvido: !!d.devolvido,
+        criadoEm: d.criadoEm?.toDate?.()?.toLocaleString?.() || "",
+      });
     });
-  });
 
-  // filtro
-  const term = (filtroBusca.value || "").toLowerCase();
-  const filtered = term ? rows.filter(r =>
-    Object.values(r).join(" ").toLowerCase().includes(term)
-  ) : rows;
+    // filtro
+    const term = (filtroBusca.value || "").toLowerCase();
+    const filtered = term ? rows.filter(r =>
+      Object.values(r).join(" ").toLowerCase().includes(term)
+    ) : rows;
 
-  // render
-  tblPedidos.innerHTML = "";
-  for (const r of filtered.slice(0, 500)) {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${r.data}</td>
-      <td>${r.sku}</td>
-      <td>${r.rastreio}</td>
-      <td>${r.vendaId}</td>
-      <td>${r.loja}</td>
-      <td>${r.devolvido ? "<span class='badge ok'>Sim</span>" : "<span class='badge no'>Não</span>"}</td>
-      <td>${r.criadoEm}</td>
-    `;
-    tblPedidos.appendChild(tr);
+    // render
+    tblPedidos.innerHTML = "";
+    for (const r of filtered.slice(0, 500)) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${r.data}</td>
+        <td>${r.sku}</td>
+        <td>${r.rastreio}</td>
+        <td>${r.vendaId}</td>
+        <td>${r.loja}</td>
+        <td>${r.devolvido ? "<span class='badge ok'>Sim</span>" : "<span class='badge no'>Não</span>"}</td>
+        <td>${r.criadoEm}</td>
+      `;
+      tblPedidos.appendChild(tr);
+    }
+  } catch (err) {
+    console.error("Falha ao carregar pedidos", err);
+    const msg = err?.message || "Não foi possível carregar os pedidos.";
+    tblPedidos.innerHTML = `<tr><td colspan='7'><span class="badge no">${msg}</span></td></tr>`;
   }
 }
 btnRecarregar.addEventListener("click", carregarPedidos);
 filtroBusca.addEventListener("input", carregarPedidos);
 
 btnExportar.addEventListener("click", async () => {
-  const { db, collection, getDocs, query, orderBy } = window.__vts;
-  const q = query(collection(db, "vtsPedidos"), orderBy("criadoEm", "desc"));
-  const snap = await getDocs(q);
-  const rows = [["data","sku","rastreio","vendaId","loja","devolvido","criadoEm"]];
-  snap.forEach(docSnap => {
-    const d = docSnap.data();
-    const dt = d.criadoEm?.toDate?.();
-    rows.push([
-      d.data||"", d.sku||"", d.rastreio||"", d.vendaId||"", d.loja||"",
-      d.devolvido ? "sim" : "não",
-      dt ? dt.toISOString() : ""
-    ]);
-  });
-  const csv = rows.map(r => r.map(x => `"${String(x).replace(/"/g,'""')}"`).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = "vts_pedidos.csv"; a.click();
-  URL.revokeObjectURL(url);
+  try {
+    const { db, collection, getDocs, query, orderBy } = window.__vts || {};
+    if (!db) {
+      throw new Error("Firestore não inicializado.");
+    }
+    const q = query(collection(db, "vtsPedidos"), orderBy("criadoEm", "desc"));
+    const snap = await getDocs(q);
+    const rows = [["data","sku","rastreio","vendaId","loja","devolvido","criadoEm"]];
+    snap.forEach(docSnap => {
+      const d = docSnap.data();
+      const dt = d.criadoEm?.toDate?.();
+      rows.push([
+        d.data||"", d.sku||"", d.rastreio||"", d.vendaId||"", d.loja||"",
+        d.devolvido ? "sim" : "não",
+        dt ? dt.toISOString() : ""
+      ]);
+    });
+    const csv = rows.map(r => r.map(x => `"${String(x).replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "vts_pedidos.csv"; a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error("Falha ao exportar pedidos", err);
+    alert(err?.message || "Não foi possível exportar os pedidos.");
+  }
 });
 
 // Devoluções -----------------------------------------------------------------
@@ -354,25 +380,35 @@ btnMarcarDevolvido.addEventListener("click", async () => {
     alert("Informe rastreio ou venda ID.");
     return;
   }
-  const { db, collection, getDocs, query, where, setDoc, doc, serverTimestamp } = window.__vts;
-  let alvoId = null;
-  // Tenta por vendaId
-  if (vendaId) {
-    const q1 = query(collection(db, "vtsPedidos"), where("vendaId", "==", vendaId));
-    const s1 = await getDocs(q1);
-    if (!s1.empty) alvoId = s1.docs[0].id;
+  devMsg.textContent = "";
+  try {
+    const { db, collection, getDocs, query, where, setDoc, doc, serverTimestamp } = window.__vts || {};
+    if (!db) {
+      throw new Error("Firestore não inicializado.");
+    }
+    let alvoId = null;
+    // Tenta por vendaId
+    if (vendaId) {
+      const q1 = query(collection(db, "vtsPedidos"), where("vendaId", "==", vendaId));
+      const s1 = await getDocs(q1);
+      if (!s1.empty) alvoId = s1.docs[0].id;
+    }
+    // Tenta por rastreio
+    if (!alvoId && rastreio) {
+      const q2 = query(collection(db, "vtsPedidos"), where("rastreio", "==", rastreio));
+      const s2 = await getDocs(q2);
+      if (!s2.empty) alvoId = s2.docs[0].id;
+    }
+    if (!alvoId) {
+      devMsg.innerHTML = `<span class="badge no">Pedido não encontrado.</span>`;
+      return;
+    }
+    await setDoc(doc(db, "vtsPedidos", alvoId), { devolvido: true, devolvidoEm: serverTimestamp() }, { merge: true });
+    devMsg.innerHTML = `<span class="badge ok">Marcado como devolvido!</span> ID: ${alvoId}`;
+  } catch (err) {
+    console.error("Falha ao marcar devolução", err);
+    const msg = err?.message || "Não foi possível atualizar o pedido.";
+    devMsg.innerHTML = `<span class="badge no">${msg}</span>`;
   }
-  // Tenta por rastreio
-  if (!alvoId && rastreio) {
-    const q2 = query(collection(db, "vtsPedidos"), where("rastreio", "==", rastreio));
-    const s2 = await getDocs(q2);
-    if (!s2.empty) alvoId = s2.docs[0].id;
-  }
-  if (!alvoId) {
-    devMsg.innerHTML = `<span class="badge no">Pedido não encontrado.</span>`;
-    return;
-  }
-  await setDoc(doc(db, "vtsPedidos", alvoId), { devolvido: true, devolvidoEm: serverTimestamp() }, { merge: true });
-  devMsg.innerHTML = `<span class="badge ok">Marcado como devolvido!</span> ID: ${alvoId}`;
 });
 
