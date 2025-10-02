@@ -116,6 +116,10 @@ function extractFields(text, lojaDigitada, dataDigitada) {
   const mSku1 = text.match(/SKU[:\s]*([A-Z0-9+._-]{2,40})/i);
   if (mSku1) sku = clean(mSku1[1]);
   if (!sku) {
+    const skuLine = firstMatch(/SKU[^\w]{0,5}([A-Za-zÀ-ÿ0-9+._/ -]{2,80})/i, text);
+    if (skuLine) sku = skuLine;
+  }
+  if (!sku) {
     // tenta achar códigos como T6, T6+P4+A11, P1-ROSA (evita CEP/CPF etc.)
     const cand = text.match(/\b([A-Z0-9]{1,3}(?:[+][A-Z0-9]{1,4})+(?:-[A-Z0-9]+)?|[A-Z]\d{1,3}(?:-[A-Z]+)?|[A-Z0-9]{2,6}-[A-Z0-9]{2,8})\b/g);
     if (cand) {
@@ -139,7 +143,11 @@ function extractFields(text, lojaDigitada, dataDigitada) {
   const mPack = text.match(/Pack ID[:\s]*([0-9]{8,20})/i);
   if (mPack) vendaId = mPack[1];
   if (!vendaId) {
-    const mVenda = text.match(/(?:Pedido|Venda|Order|ID)[:#\s-]*([A-Z0-9-]{6,24})/i);
+    const pedido = firstMatch(/Pedido[:#\s-]*([A-Z0-9-]{6,30})/i, text);
+    if (pedido) vendaId = pedido;
+  }
+  if (!vendaId) {
+    const mVenda = text.match(/(?:Venda|Order|ID)[:#\s-]*([A-Z0-9-]{6,24})/i);
     if (mVenda) vendaId = clean(mVenda[1]);
   }
   if (!vendaId) {
