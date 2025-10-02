@@ -57,24 +57,37 @@
       localCache = memoryLocalCache();
     }
 
-    try {
-      db = initializeFirestore(app, {
-        experimentalAutoDetectLongPolling: true,
-        useFetchStreams: false,
-        localCache,
-      });
-    } catch (err) {
-      console.warn("Falha ao inicializar Firestore com autodetecção de long polling, forçando modo long polling", err);
+    const baseSettings = {
+      useFetchStreams: false,
+      localCache,
+    };
+
+    const tryInitialize = (settings, warnMessage) => {
       try {
-        db = initializeFirestore(app, {
-          experimentalForceLongPolling: true,
-          useFetchStreams: false,
-          localCache,
-        });
-      } catch (initErr) {
-        console.warn("Falha ao inicializar Firestore customizado, usando getFirestore padrão", initErr);
-        db = getFirestore(app);
+        return initializeFirestore(app, settings);
+      } catch (err) {
+        console.warn(warnMessage, err);
+        return null;
       }
+    };
+
+    // 1) Tenta autodetectar o protocolo ideal (XHR/WebChannel x long polling)
+    db = tryInitialize(
+      { ...baseSettings, experimentalAutoDetectLongPolling: true },
+      "Falha ao inicializar Firestore com autodetecção de long polling, tentando modo long polling forçado"
+    );
+
+    // 2) Se falhar, força long polling explicitamente
+    if (!db) {
+      db = tryInitialize(
+        { ...baseSettings, experimentalForceLongPolling: true },
+        "Falha ao inicializar Firestore forçando long polling, usando getFirestore padrão"
+      );
+    }
+
+    // 3) Último fallback para configuração padrão
+    if (!db) {
+      db = getFirestore(app);
     }
 
     // Expor globalmente para app.js
