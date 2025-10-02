@@ -9,7 +9,21 @@
   <!-- Firebase v10 modular -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, setDoc, getDocs, getDoc, doc, query, where, orderBy, serverTimestamp, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
+    import {
+      getFirestore,
+      initializeFirestore,
+      collection,
+      addDoc,
+      setDoc,
+      getDocs,
+      getDoc,
+      doc,
+      query,
+      where,
+      orderBy,
+      serverTimestamp,
+      enableIndexedDbPersistence
+    } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
     // Config fornecida pelo usuário
     const firebaseConfig = {
@@ -22,10 +36,26 @@
     };
 
     const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+
+    // Alguns ambientes corporativos/ISP bloqueiam o protocolo WebChannel usado
+    // pelo Firestore, resultando em erros 400 na stream "Write". Forçamos o
+    // uso do long polling (ou autodetecção) e fazemos fallback para a
+    // inicialização padrão caso o método não esteja disponível.
+    let db;
+    try {
+      db = initializeFirestore(app, {
+        experimentalAutoDetectLongPolling: true,
+        useFetchStreams: false,
+      });
+    } catch (err) {
+      console.warn("Falha ao forçar long polling, usando getFirestore padrão", err);
+      db = getFirestore(app);
+    }
 
     // Tentativa de cache/offline
-    enableIndexedDbPersistence(db).catch(()=>{});
+    enableIndexedDbPersistence(db).catch(err => {
+      console.warn("IndexedDB persistence indisponível", err);
+    });
 
     // Expor globalmente para app.js
     window.__vts = { db, collection, addDoc, setDoc, getDocs, getDoc, doc, query, where, orderBy, serverTimestamp };
