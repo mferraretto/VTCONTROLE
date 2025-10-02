@@ -55,11 +55,23 @@ async function ocrFromImageBlob(blob) {
 }
 
 // Renderizar PDF em imagens e rodar OCR página a página
-async function ocrFromPdf(file) {
+async function tryExtractTextFromPdf(page) {
+  try {
+    const textContent = await page.getTextContent();
+    const text = textContent.items.map(item => item.str).join(" ");
+    return clean(text);
+  } catch (err) {
+    console.warn("Falha ao extrair texto direto do PDF, usando OCR", err);
+    return "";
+  }
+}
+
+async function textFromPdf(file) {
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   let fullText = "";
   previewImgs.innerHTML = "";
+  let usouOcr = false;
 
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
@@ -71,15 +83,28 @@ async function ocrFromPdf(file) {
     await page.render({ canvasContext: ctx, viewport }).promise;
     previewImgs.appendChild(canvas);
 
-    const blob = await new Promise(res => canvas.toBlob(res, "image/png", 0.95));
-    const pageText = await ocrFromImageBlob(blob);
-    fullText += "\n\n---- Página " + i + " ----\n" + pageText;
+    let pageText = await tryExtractTextFromPdf(page);
+    if (!pageText || pageText.length < 20) {
+      const blob = await new Promise(res => canvas.toBlob(res, "image/png", 0.95));
+      if (!blob) continue;
+      pageText = await ocrFromImageBlob(blob);
+      usouOcr = true;
+      fullText += `\n\n---- Página ${i} (OCR) ----\n${pageText}`;
+    } else {
+      fullText += `\n\n---- Página ${i} ----\n${pageText}`;
+    }
   }
-  return fullText;
+
+  return { text: fullText, usouOcr };
 }
 
 // Heurísticas de extração ----------------------------------------------------
 function clean(s) { return (s||"").replace(/\s+/g, " ").trim(); }
+
+function firstMatch(regex, text) {
+  const m = text.match(regex);
+  return m ? clean(m[1] || m[0]) : null;
+}
 
 function extractFields(text, lojaDigitada, dataDigitada) {
   // SKU: linha começando com "SKU:" ou padrões tipo T6 / T6+P4+A11 / P1-ROSA
@@ -98,7 +123,7 @@ function extractFields(text, lojaDigitada, dataDigitada) {
 
   // Rastreio: padrões BR + dígitos + letra(s) finais
   let rastreio = null;
-  const mR = text.match(/\b([A-Z]{2}\d{8,12}[A-Z]{0,2})\b/g);
+  const mR = text.match(/\b([A-Z]{2}\d{8,15}[A-Z]{0,2})\b/g);
   if (mR) {
     // Preferir os que começam com BR
     const pref = mR.find(x => x.startsWith("BR"));
@@ -110,7 +135,11 @@ function extractFields(text, lojaDigitada, dataDigitada) {
   const mPack = text.match(/Pack ID[:\s]*([0-9]{8,20})/i);
   if (mPack) vendaId = mPack[1];
   if (!vendaId) {
-    const mCode = text.match(/\b([A-Z0-9]{12,20})\b/g);
+    const mVenda = text.match(/(?:Pedido|Venda|Order|ID)[:#\s-]*([A-Z0-9-]{6,24})/i);
+    if (mVenda) vendaId = clean(mVenda[1]);
+  }
+  if (!vendaId) {
+    const mCode = text.match(/\b([A-Z0-9]{10,24})\b/g);
     if (mCode) {
       // evitar capturar o rastreio como vendaId; remove se igual ao rastreio
       const filtered = mCode.filter(x => x !== rastreio);
@@ -123,14 +152,28 @@ function extractFields(text, lojaDigitada, dataDigitada) {
   const mLoja = text.match(/Loja[:\s]*([A-Za-zÀ-ÿ0-9 ._-]{2,60})/i);
   if (mLoja) loja = clean(mLoja[1]);
   if (!loja) {
-    const mRem = text.match(/Casa Rosa Fest Brasil|Casa Rosa|Matheus/i);
-    if (mRem) loja = mRem[0];
+    const candidatoLoja = firstMatch(/(?:Seller|Vendedor|Remetente)[:\s-]*([A-Za-zÀ-ÿ0-9 ._-]{2,60})/i, text);
+    if (candidatoLoja) loja = candidatoLoja;
+  }
+  if (!loja) {
+    const mRem = text.match(/Casa Rosa Fest Brasil|Casa Rosa|Matheus|Shopee|Mercado Livre|Amazon/i);
+    if (mRem) loja = clean(mRem[0]);
   }
 
   // Data: dd/mm/aaaa
   let data = dataDigitada || null;
-  const mDt = text.match(/\b(\d{2}\/\d{2}\/\d{4})\b/);
-  if (mDt) data = mDt[1];
+  const mDt = text.match(/\b(\d{2}[\/-]\d{2}[\/-]\d{4})\b/);
+  if (mDt) {
+    const raw = mDt[1].replace(/-/g, "/");
+    data = raw;
+  }
+  if (!data) {
+    const isoDate = text.match(/\b(\d{4}-\d{2}-\d{2})\b/);
+    if (isoDate) {
+      const [y,m,d] = isoDate[1].split("-");
+      data = `${d}/${m}/${y}`;
+    }
+  }
 
   return { sku, rastreio, vendaId, loja, data };
 }
@@ -154,12 +197,14 @@ inpImagem.addEventListener("change", async (ev) => {
 inpPdf.addEventListener("change", async (ev) => {
   const file = ev.target.files?.[0];
   if (!file) return;
-  saveMsg.textContent = "Renderizando PDF e executando OCR (página a página)...";
-  const text = await ocrFromPdf(file);
+  saveMsg.textContent = "Lendo PDF e extraindo texto...";
+  const { text, usouOcr } = await textFromPdf(file);
   ocrTextFinal = text;
   ocrDump.textContent = text;
   preencherCampos(text);
-  saveMsg.textContent = "Pronto. Revise e salve.";
+  saveMsg.textContent = usouOcr
+    ? "PDF processado com OCR. Revise e salve."
+    : "PDF processado. Revise e salve.";
 });
 
 btnProcessarTexto.addEventListener("click", () => {
