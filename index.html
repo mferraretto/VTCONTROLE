@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Controle de Vendas VTS — Etiquetas & Devoluções</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Firebase v10 modular -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, setDoc, getDocs, getDoc, doc, query, where, orderBy, serverTimestamp, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
+
+    // Config fornecida pelo usuário
+    const firebaseConfig = {
+      apiKey: "AIzaSyDWok2hM9-HWITlLuqmYhGgEx8giXRUSTA",
+      authDomain: "vtscontrole.firebaseapp.com",
+      projectId: "vtscontrole",
+      storageBucket: "vtscontrole.firebasestorage.app",
+      messagingSenderId: "538434942205",
+      appId: "1:538434942205:web:c174a1e336e5b75628fa94"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Tentativa de cache/offline
+    enableIndexedDbPersistence(db).catch(()=>{});
+
+    // Expor globalmente para app.js
+    window.__vts = { db, collection, addDoc, setDoc, getDocs, getDoc, doc, query, where, orderBy, serverTimestamp };
+  </script>
+
+  <!-- Tesseract.js para OCR -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.3/dist/tesseract.min.js"></script>
+  <!-- pdf.js para renderizar PDFs em canvas e extrair imagens para o OCR -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.6.82/pdf.min.js"></script>
+  <script>
+    // Config do pdf.js (worker)
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.6.82/pdf.worker.min.js";
+  </script>
+</head>
+<body>
+  <header class="app-header">
+    <h1>📦 Controle de Vendas VTS</h1>
+    <nav class="tabs">
+      <button class="tab active" data-tab="importar">Importar Etiquetas</button>
+      <button class="tab" data-tab="salvos">Pedidos Salvos</button>
+      <button class="tab" data-tab="devolucoes">Devoluções</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- TAB: Importar Etiquetas -->
+    <section id="tab-importar" class="tab-panel active">
+      <div class="card">
+        <h2>1) Selecione a origem</h2>
+        <div class="grid">
+          <label>Nome da Loja/Plataforma
+            <input id="inpLoja" type="text" placeholder="Ex.: Shopee / Mercado Livre / Matheus" />
+          </label>
+          <label>Data da Venda (se souber)
+            <input id="inpData" type="date" />
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>2) Envie a etiqueta</h2>
+        <p>Você pode usar a câmera (celular), subir uma imagem/PDF ou digitar manualmente.</p>
+        <div class="grid">
+          <label>📸 Câmera / Imagem
+            <input id="inpImagem" type="file" accept="image/*" capture="environment" />
+          </label>
+          <label>📄 PDF (uma ou várias páginas)
+            <input id="inpPdf" type="file" accept="application/pdf" />
+          </label>
+        </div>
+        <details>
+          <summary>✍️ Inserção manual (colar texto capturado)</summary>
+          <textarea id="inpTexto" rows="4" placeholder="Cole aqui o texto da etiqueta..."></textarea>
+          <button id="btnProcessarTexto" class="btn">Processar texto</button>
+        </details>
+      </div>
+
+      <div class="card">
+        <h2>3) Pré-visualização e correção</h2>
+        <div id="previewImgs" class="preview"></div>
+        <div class="grid">
+          <label>SKU
+            <input id="outSku" type="text" placeholder="Ex.: T6, T6+P4+A11, P1-ROSA" />
+          </label>
+          <label>Nº de Rastreamento
+            <input id="outRastreio" type="text" placeholder="Ex.: BR255041302814F" />
+          </label>
+          <label>ID da Venda / Pedido
+            <input id="outVendaId" type="text" placeholder="Ex.: 25100235W20NP1 / Pack ID" />
+          </label>
+          <label>Loja / Plataforma
+            <input id="outLoja" type="text" placeholder="Ex.: Matheus / Casa Rosa / Shopee" />
+          </label>
+          <label>Data (DD/MM/AAAA)
+            <input id="outData" type="text" placeholder="Ex.: 02/10/2025" />
+          </label>
+        </div>
+        <button id="btnSalvar" class="btn primary">💾 Salvar no Firebase</button>
+        <div id="saveMsg"></div>
+        <details>
+          <summary>🧾 Texto completo lido (OCR)</summary>
+          <pre id="ocrDump"></pre>
+        </details>
+      </div>
+    </section>
+
+    <!-- TAB: Pedidos Salvos -->
+    <section id="tab-salvos" class="tab-panel">
+      <div class="card">
+        <h2>Pedidos (últimos 500)</h2>
+        <div class="grid">
+          <input id="filtroBusca" type="search" placeholder="Filtrar por SKU, rastreio, vendaId ou loja..." />
+          <button id="btnRecarregar" class="btn">Recarregar</button>
+          <button id="btnExportar" class="btn">Exportar CSV</button>
+        </div>
+        <div class="table-wrap">
+          <table id="tblPedidos">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>SKU</th>
+                <th>Rastreio</th>
+                <th>Venda ID</th>
+                <th>Loja</th>
+                <th>Devolvido?</th>
+                <th>Salvo em</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB: Devoluções -->
+    <section id="tab-devolucoes" class="tab-panel">
+      <div class="card">
+        <h2>Marcar pedido como devolvido</h2>
+        <p>Informe o <b>nº de rastreio</b> ou o <b>ID do pedido</b>. O sistema vai buscar e marcar como devolvido.</p>
+        <div class="grid">
+          <label>Rastreio
+            <input id="devRastreio" type="text" placeholder="Ex.: BR255041302814F" />
+          </label>
+          <label>Venda ID
+            <input id="devVendaId" type="text" placeholder="Ex.: 25100235W20NP1" />
+          </label>
+        </div>
+        <button id="btnMarcarDevolvido" class="btn danger">🚩 Marcar devolvido</button>
+        <div id="devMsg"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <small>Feito para leitura de etiquetas reais (OCR) — suporta imagem e PDF — salva no Firestore.</small>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
