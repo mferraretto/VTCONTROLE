@@ -41,38 +41,46 @@
 
     // Alguns ambientes corporativos/ISP bloqueiam o protocolo WebChannel usado
     // pelo Firestore, resultando em erros 400 na stream "Write". Forçamos o
-    // uso do long polling (ou autodetecção) e fazemos fallback para a
-    // inicialização padrão caso o método não esteja disponível. Também
-    // habilitamos o cache persistente utilizando a nova API baseada em
-    // `FirestoreSettings.cache`, com fallback para memória quando o IndexedDB
-    // não está disponível (ex.: abas privadas, contextos inseguros).
+    // uso do long polling e, caso haja falhas com o cache persistente, criamos
+    // um app alternativo apenas com cache em memória antes de recorrer ao
+    // `getFirestore` padrão.
     let db;
     let localCache;
+    let usouCacheEmMemoria = false;
     try {
-      localCache = ("indexedDB" in window)
-        ? persistentLocalCache({ tabManager: persistentMultipleTabManager() })
-        : memoryLocalCache();
+      if ("indexedDB" in window) {
+        localCache = persistentLocalCache({ tabManager: persistentMultipleTabManager() });
+      } else {
+        localCache = memoryLocalCache();
+        usouCacheEmMemoria = true;
+      }
     } catch (err) {
       console.warn("Falha ao configurar cache persistente, usando fallback em memória", err);
       localCache = memoryLocalCache();
+      usouCacheEmMemoria = true;
     }
 
     try {
       db = initializeFirestore(app, {
-        experimentalAutoDetectLongPolling: true,
+        experimentalForceLongPolling: true,
         useFetchStreams: false,
         localCache,
       });
     } catch (err) {
-      console.warn("Falha ao inicializar Firestore com autodetecção de long polling, forçando modo long polling", err);
+      console.warn("Falha ao inicializar Firestore com long polling forçado", err);
       try {
-        db = initializeFirestore(app, {
+        const fallbackApp = initializeApp(firebaseConfig, "vtscontrole-long-polling");
+        db = initializeFirestore(fallbackApp, {
           experimentalForceLongPolling: true,
           useFetchStreams: false,
-          localCache,
+          localCache: memoryLocalCache(),
         });
       } catch (initErr) {
-        console.warn("Falha ao inicializar Firestore customizado, usando getFirestore padrão", initErr);
+        if (!usouCacheEmMemoria) {
+          console.warn("Falha ao inicializar Firestore com cache em memória em app alternativo, tentando getFirestore padrão", initErr);
+        } else {
+          console.warn("Falha ao inicializar Firestore mesmo com cache em memória, tentando getFirestore padrão", initErr);
+        }
         db = getFirestore(app);
       }
     }
