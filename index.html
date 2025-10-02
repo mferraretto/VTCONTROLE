@@ -67,7 +67,7 @@
       console.warn("Falha ao inicializar Firestore com autodetecção de long polling, forçando modo long polling", err);
       try {
         db = initializeFirestore(app, {
-          experimentalForceLongPolling: true,
+          experimentalAutoDetectLongPolling: true,
           useFetchStreams: false,
           localCache,
         });
