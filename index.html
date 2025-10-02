@@ -22,7 +22,9 @@
       where,
       orderBy,
       serverTimestamp,
-      enableIndexedDbPersistence
+      persistentLocalCache,
+      persistentMultipleTabManager,
+      memoryLocalCache
     } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
     // Config fornecida pelo usuário
@@ -40,22 +42,34 @@
     // Alguns ambientes corporativos/ISP bloqueiam o protocolo WebChannel usado
     // pelo Firestore, resultando em erros 400 na stream "Write". Forçamos o
     // uso do long polling (ou autodetecção) e fazemos fallback para a
-    // inicialização padrão caso o método não esteja disponível.
+    // inicialização padrão caso o método não esteja disponível. Também
+    // habilitamos o cache persistente utilizando a nova API baseada em
+    // `FirestoreSettings.cache`, com fallback para memória quando o IndexedDB
+    // não está disponível (ex.: abas privadas, contextos inseguros).
     let db;
     try {
+      const localCache = ("indexedDB" in window)
+        ? persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+        : memoryLocalCache();
+
       db = initializeFirestore(app, {
         experimentalAutoDetectLongPolling: true,
         useFetchStreams: false,
+        localCache,
       });
     } catch (err) {
-      console.warn("Falha ao forçar long polling, usando getFirestore padrão", err);
-      db = getFirestore(app);
+      console.warn("Falha ao configurar cache persistente, usando fallback em memória", err);
+      try {
+        db = initializeFirestore(app, {
+          experimentalAutoDetectLongPolling: true,
+          useFetchStreams: false,
+          localCache: memoryLocalCache(),
+        });
+      } catch (initErr) {
+        console.warn("Falha ao inicializar Firestore customizado, usando getFirestore padrão", initErr);
+        db = getFirestore(app);
+      }
     }
-
-    // Tentativa de cache/offline
-    enableIndexedDbPersistence(db).catch(err => {
-      console.warn("IndexedDB persistence indisponível", err);
-    });
 
     // Expor globalmente para app.js
     window.__vts = { db, collection, addDoc, setDoc, getDocs, getDoc, doc, query, where, orderBy, serverTimestamp };
