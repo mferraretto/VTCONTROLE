@@ -47,25 +47,29 @@
     // `FirestoreSettings.cache`, com fallback para memória quando o IndexedDB
     // não está disponível (ex.: abas privadas, contextos inseguros).
     let db;
+    let localCache;
     try {
-      const localCache = ("indexedDB" in window)
+      localCache = ("indexedDB" in window)
         ? persistentLocalCache({ tabManager: persistentMultipleTabManager() })
         : memoryLocalCache();
+    } catch (err) {
+      console.warn("Falha ao configurar cache persistente, usando fallback em memória", err);
+      localCache = memoryLocalCache();
+    }
 
+    try {
       db = initializeFirestore(app, {
         experimentalAutoDetectLongPolling: true,
-        experimentalForceLongPolling: true,
         useFetchStreams: false,
         localCache,
       });
     } catch (err) {
-      console.warn("Falha ao configurar cache persistente, usando fallback em memória", err);
+      console.warn("Falha ao inicializar Firestore com autodetecção de long polling, forçando modo long polling", err);
       try {
         db = initializeFirestore(app, {
-          experimentalAutoDetectLongPolling: true,
           experimentalForceLongPolling: true,
           useFetchStreams: false,
-          localCache: memoryLocalCache(),
+          localCache,
         });
       } catch (initErr) {
         console.warn("Falha ao inicializar Firestore customizado, usando getFirestore padrão", initErr);
