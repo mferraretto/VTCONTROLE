@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-app.js";
-import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-auth.js";
+// Autenticação removida: app funciona sem login de usuário
 import {
   getFirestore,
   initializeFirestore,
@@ -61,20 +61,7 @@ function createFirestore(app, localCache) {
   }
 }
 
-function ensureAnonymousAuth(app) {
-  const auth = getAuth(app);
-  let authError = null;
-  // Resolva a prontidão no primeiro callback, mesmo sem usuário, para não travar a UI
-  const ready = new Promise((resolve) => {
-    onAuthStateChanged(auth, () => resolve());
-  });
-  // Dispara login anônimo; se já estiver logado, o onAuthStateChanged será chamado
-  signInAnonymously(auth).catch((err) => {
-    authError = err;
-    console.warn("Falha ao autenticar anonimamente", err);
-  });
-  return { auth, ready, authErrorGetter: () => authError };
-}
+// Nenhuma autenticação necessária
 
 export function initFirebase() {
   if (window.__vts) {
@@ -84,7 +71,7 @@ export function initFirebase() {
   const app = initializeApp(firebaseConfig);
   const localCache = setupLocalCache();
   const db = createFirestore(app, localCache);
-  const { auth, ready, authErrorGetter } = ensureAnonymousAuth(app);
+  const ready = Promise.resolve();
 
   window.__vts = {
     db,
@@ -98,9 +85,7 @@ export function initFirebase() {
     where,
     orderBy,
     serverTimestamp,
-    auth,
     whenReady: ready,
-    getAuthError: authErrorGetter,
   };
 
   return window.__vts;
