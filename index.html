@@ -54,6 +54,7 @@
 
       db = initializeFirestore(app, {
         experimentalAutoDetectLongPolling: true,
+        experimentalForceLongPolling: true,
         useFetchStreams: false,
         localCache,
       });
@@ -62,6 +63,7 @@
       try {
         db = initializeFirestore(app, {
           experimentalAutoDetectLongPolling: true,
+          experimentalForceLongPolling: true,
           useFetchStreams: false,
           localCache: memoryLocalCache(),
         });
