@@ -1,3 +1,8 @@
+import { initFirebase } from "./firebase-init.js";
+
+// Garante inicialização do Firebase/Firestore antes de usar window.__vts
+initFirebase();
+
 // app.js
 // Navegação
 const tabs = document.querySelectorAll(".tab");
